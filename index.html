@@ -3,36 +3,34 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Flight-Cal</title>
+    <title>FlightCal</title>
     <meta name="description" content="Flight to Calendar web app" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
     <div class="card">
-      <h2>Flight-Cal — Create a .ics event</h2>
-      <p class="hint">No login. Runs entirely in your browser.</p>
+      <h2>FlightCal</h2>
+      <p class="hint">Create a calendar event for your flight — no login required.</p>
       <form id="flightForm">
   <div class="row">
-    <div>
-      <label>Flight (IATA)</label>
-      <input id="flightIata" placeholder="e.g., AA100" required />
-    </div>
-    <div>
-      <label>Airline (optional)</label>
-      <input id="airline" placeholder="e.g., American Airlines" />
-    </div>
+  <div>
+    <label>Airline</label>
+    <select id="airline" required>
+      <option value="">Select airline</option>
+      <option value="AA">American Airlines (AA)</option>
+      <option value="UA">United (UA)</option>
+      <option value="DL">Delta (DL)</option>
+      <option value="WN">Southwest (WN)</option>
+      <option value="BA">British Airways (BA)</option>
+      <!-- add more later as needed -->
+    </select>
   </div>
-
-  <div class="row mt">
-    <div>
-      <label>From Airport (IATA)</label>
-      <input id="depIata" placeholder="e.g., AUS" required />
-    </div>
-    <div>
-      <label>To Airport (IATA)</label>
-      <input id="arrIata" placeholder="e.g., DFW" required />
-    </div>
+  <div>
+    <label>Flight Number</label>
+    <!-- we’ll auto-prefix the two-letter airline code; user types the number -->
+    <input id="flightIata" placeholder="e.g., AA100 or 100" required />
   </div>
+</div>
 
   <div class="row mt">
     <div>
@@ -86,6 +84,28 @@
       alert('Please fill all required fields.');
       return;
     }
+    
+    // Auto-prefix flight code with the selected airline (e.g., AA → AA100)
+    const airlineSel = document.getElementById('airline');
+    const flightInput = document.getElementById('flightIata');
+
+    airlineSel.addEventListener('change', () => {
+        const code = airlineSel.value.toUpperCase();
+        if (!code) return;
+
+    // If user already typed a different 2-letter prefix, strip it
+        const stripped = flightInput.value.replace(/^[A-Za-z]{2}/, '').trim();
+
+    // If it doesn't already start with the chosen code, prefix it
+        if (!flightInput.value.toUpperCase().startsWith(code)) {
+            flightInput.value = code + stripped;
+        }
+
+    // Put cursor at the end so the user can type the number immediately
+        const len = flightInput.value.length;
+        flightInput.setSelectionRange(len, len);
+        flightInput.focus();
+        });
 
     // Helper: zero-pad numbers to 2 digits
     const pad = (n) => String(n).padStart(2, '0');
