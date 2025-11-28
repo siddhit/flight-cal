@@ -68,7 +68,6 @@
     </select>
   </div>
 
- 
 </form>
       <div class="sticky-download" aria-hidden="true">
         <button type="button" id="stickyDownload">Download .ics</button>
@@ -218,7 +217,7 @@
     a.remove();                                   // Remove the temporary link
     URL.revokeObjectURL(url);                     // Release the Blob URL
 
-
+  });
   // Sticky bar button submits the same form (for mobile ease)
   const stickyBtn = document.getElementById('stickyDownload');
   if (stickyBtn) {
@@ -228,7 +227,6 @@
       else if (form) form.submit();
     });
   }
-  });
 </script>
   </body>
 </html>
