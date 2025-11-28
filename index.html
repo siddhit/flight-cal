@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Flight-Cal</title>
+    <meta name="description" content="Flight to Calendar web app" />
+    <style>
+      /* minimal styling so it looks clean without any toolkit */
+      :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      body { margin: 0; padding: 24px; background: #fafafa; color: #111; }
+      .card { max-width: 720px; margin: 0 auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      label { font-size: 12px; color: #374151; display: block; margin-bottom: 6px; }
+      input, textarea, select { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
+      button { padding: 10px 14px; border: 1px solid #1f2937; border-radius: 8px; background: #2563eb; color: white; cursor: pointer; }
+      button:disabled { background: #9ca3af; cursor: not-allowed; }
+      .hint { font-size: 12px; color: #6b7280; }
+      .mt { margin-top: 12px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+      <h2>Flight-Cal — Create a .ics event</h2>
+      <p class="hint">No login. Runs entirely in your browser.</p>
+      <form id="flightForm">
+  <div class="row">
+    <div>
+      <label>Flight (IATA)</label>
+      <input id="flightIata" placeholder="e.g., AA100" required />
+    </div>
+    <div>
+      <label>Airline (optional)</label>
+      <input id="airline" placeholder="e.g., American Airlines" />
+    </div>
+  </div>
+
+  <div class="row mt">
+    <div>
+      <label>From Airport (IATA)</label>
+      <input id="depIata" placeholder="e.g., AUS" required />
+    </div>
+    <div>
+      <label>To Airport (IATA)</label>
+      <input id="arrIata" placeholder="e.g., DFW" required />
+    </div>
+  </div>
+
+  <div class="row mt">
+    <div>
+      <label>Departure (local date &amp; time)</label>
+      <input id="depLocal" type="datetime-local" required />
+      <div class="hint">Local time at departure airport</div>
+    </div>
+    <div>
+      <label>Arrival (local date &amp; time)</label>
+      <input id="arrLocal" type="datetime-local" required />
+      <div class="hint">Local time at arrival airport</div>
+    </div>
+  </div>
+
+  <div class="mt">
+    <label>Notes (optional)</label>
+    <textarea id="notes" rows="3" placeholder="Seat, record locator, baggage, etc."></textarea>
+  </div>
+
+  <div class="mt">
+    <label>All-day event?</label>
+    <select id="allDay">
+      <option value="no" selected>No</option>
+      <option value="yes">Yes</option>
+    </select>
+  </div>
+
+  <div class="mt">
+    <button id="downloadBtn" type="submit">Download .ics</button>
+  </div>
+</form>
+    </div>
+    <script>
+    // Handle form submit and generate a .ics file for download
+  document.getElementById('flightForm').addEventListener('submit', function (e) {
+    e.preventDefault(); // prevent page reload on submit
+
+    // Read all input values from the form
+    const flightIata = document.getElementById('flightIata').value.trim(); // e.g., AA100
+    const airline = document.getElementById('airline').value.trim();       // optional airline name
+    const depIata = document.getElementById('depIata').value.trim();       // departure airport IATA
+    const arrIata = document.getElementById('arrIata').value.trim();       // arrival airport IATA
+    const depLocal = document.getElementById('depLocal').value;            // departure local datetime (YYYY-MM-DDTHH:mm)
+    const arrLocal = document.getElementById('arrLocal').value;            // arrival local datetime (YYYY-MM-DDTHH:mm)
+    const notes = document.getElementById('notes').value;                  // freeform notes
+    const allDay = document.getElementById('allDay').value;                // "yes" or "no"
+
+    // Basic validation for required fields
+    if (!flightIata || !depIata || !arrIata || !depLocal || !arrLocal) {
+      alert('Please fill all required fields.');
+      return;
+    }
+
+    // Helper: zero-pad numbers to 2 digits
+    const pad = (n) => String(n).padStart(2, '0');
+
+    // Helper: escape special characters for ICS text fields
+    function esc(s) {
+      return String(s || '')
+        .replace(/\\/g, "\\\\")  // backslash
+        .replace(/;/g, "\\;")       // semicolon
+        .replace(/,/g, "\\,")       // comma
+        .replace(/\n/g, "\\n");     // newline
+    }
+
+    // Helper: convert local datetime string (YYYY-MM-DDTHH:mm) to UTC format YYYYMMDDTHHMMSSZ
+    function toIcsUtc(local) {
+      const d = new Date(local);                 // browser interprets as local time
+      const yyyy = d.getUTCFullYear();           // UTC year
+      const mm = pad(d.getUTCMonth() + 1);       // UTC month (1-12)
+      const dd = pad(d.getUTCDate());            // UTC day
+      const HH = pad(d.getUTCHours());           // UTC hours
+      const MM = pad(d.getUTCMinutes());         // UTC minutes
+      const SS = pad(d.getUTCSeconds());         // UTC seconds
+      return `${yyyy}${mm}${dd}T${HH}${MM}${SS}Z`; // final ICS UTC string
+    }
+
+    // Compute timestamps for ICS
+    const now = new Date();
+    const dtstamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
+    const depUtc = toIcsUtc(depLocal);
+    const arrUtc = toIcsUtc(arrLocal);
+
+    // Build the visible title and location lines
+    const summary = airline ? `${airline} ${flightIata}` : `Flight ${flightIata}`; // event title
+    const location = `${depIata} → ${arrIata}`;                                     // event location line
+
+    // Create a simple globally unique ID for the event
+    const uid = `${flightIata}-${depUtc}@flight-cal.local`;
+
+    // If all-day is selected, produce a date-only event; else include times in UTC
+    let vevent = '';
+    if (allDay === 'yes') {
+      // Derive all-day start and end (end is exclusive, so add one day)
+      const d = new Date(depLocal);
+      const startDate = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`; // VALUE=DATE
+      const d2 = new Date(d);
+      d2.setDate(d2.getDate() + 1);
+      const endDate = `${d2.getFullYear()}${pad(d2.getMonth() + 1)}${pad(d2.getDate())}`;
+
+      vevent = [
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTAMP:${dtstamp}`,
+        `SUMMARY:${esc(summary)}`,
+        `LOCATION:${esc(location)}`,
+        `DESCRIPTION:${esc(notes)}`,
+        'TRANSP:OPAQUE',
+        'X-MICROSOFT-CDO-BUSYSTATUS:BUSY',
+        'X-MICROSOFT-CDO-IMPORTANCE:1',
+        `DTSTART;VALUE=DATE:${startDate}`,
+        `DTEND;VALUE=DATE:${endDate}`,
+        'END:VEVENT',
+      ].join('\r\n');
+    } else {
+      // Timed event in UTC (Z suffix)
+      vevent = [
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTAMP:${dtstamp}`,
+        `SUMMARY:${esc(summary)}`,
+        `LOCATION:${esc(location)}`,
+        `DESCRIPTION:${esc(notes)}`,
+        'TRANSP:OPAQUE',
+        'X-MICROSOFT-CDO-BUSYSTATUS:BUSY',
+        'X-MICROSOFT-CDO-IMPORTANCE:1',
+        `DTSTART:${depUtc}`,
+        `DTEND:${arrUtc}`,
+        'END:VEVENT',
+      ].join('\r\n');
+    }
+
+    // Wrap the VEVENT with VCALENDAR (required by calendar apps)
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Flight-Cal//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      vevent,
+      'END:VCALENDAR',
+      '',
+    ].join('\r\n');
+
+    // Trigger a download of the .ics file using a Blob and a temporary link
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const datePart = depLocal.slice(0, 10);       // Use YYYY-MM-DD for filename
+    const a = document.createElement('a');        // Create a temporary <a>
+    a.href = url;                                 // Point it to our Blob URL
+    a.download = `${flightIata}-${datePart}.ics`; // Suggest a useful filename
+    document.body.appendChild(a);                 // Attach to DOM for Firefox compatibility
+    a.click();                                    // Programmatically click to start download
+    a.remove();                                   // Remove the temporary link
+    URL.revokeObjectURL(url);                     // Release the Blob URL
+  });
+</script>
+  </body>
+</html>
