@@ -16,14 +16,16 @@
 
 </head>
 <body>
-    <div class="card">
-      <h2>FlightCal</h2>
-<p class="hint">Create a calendar event for your flight — no login required.</p>
-      <form id="flightForm">
-  <div class="row">
-    <div>
-      <label>Airline</label>
-      <select id="airline" required>
+    <div class="container py-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h2 class="h4 mb-1">FlightCal</h2>
+          <p class="text-muted small mb-4">Create a calendar event for your flight — no login required.</p>
+          <form id="flightForm">
+  <div class="row g-3">
+    <div class="col-12 col-md-6">
+      <label class="form-label">Airline</label>
+      <select id="airline" class="form-select" required>
         <option value="">Select airline</option>
         <option value="AA">American Airlines (AA)</option>
         <option value="UA">United (UA)</option>
@@ -32,44 +34,44 @@
         <option value="BA">British Airways (BA)</option>
       </select>
     </div>
-    <div>
-      <label>Flight Number</label>
-      <input id="flightIata" placeholder="e.g., AA100 or 100" required />
+    <div class="col-12 col-md-6">
+      <label class="form-label">Flight Number</label>
+      <input id="flightIata" class="form-control" placeholder="e.g., AA100 or 100" required />
     </div>
   </div>
 
-  <div class="row mt">
-    <div>
-      <label>From Airport (IATA)</label>
-      <input id="depIata" placeholder="e.g., AUS" required />
+  <div class="row g-3 mt-1">
+    <div class="col-12 col-md-6">
+      <label class="form-label">From Airport (IATA)</label>
+      <input id="depIata" class="form-control" placeholder="e.g., AUS" required />
     </div>
-    <div>
-      <label>To Airport (IATA)</label>
-      <input id="arrIata" placeholder="e.g., DFW" required />
-    </div>
-  </div>
-
-  <div class="row mt">
-    <div>
-      <label>Departure (local date &amp; time)</label>
-      <input id="depLocal" type="datetime-local" required />
-      <div class="hint">Local time at departure airport</div>
-    </div>
-    <div>
-      <label>Arrival (local date &amp; time)</label>
-      <input id="arrLocal" type="datetime-local" required />
-      <div class="hint">Local time at arrival airport</div>
+    <div class="col-12 col-md-6">
+      <label class="form-label">To Airport (IATA)</label>
+      <input id="arrIata" class="form-control" placeholder="e.g., DFW" required />
     </div>
   </div>
 
-  <div class="mt">
-    <label>Notes (optional)</label>
-    <textarea id="notes" rows="3" placeholder="Seat, record locator, baggage, etc."></textarea>
+  <div class="row g-3 mt-1">
+    <div class="col-12 col-md-6">
+      <label class="form-label">Departure (local date &amp; time)</label>
+      <input id="depLocal" type="datetime-local" class="form-control" required />
+      <div class="form-text">Local time at departure airport</div>
+    </div>
+    <div class="col-12 col-md-6">
+      <label class="form-label">Arrival (local date &amp; time)</label>
+      <input id="arrLocal" type="datetime-local" class="form-control" required />
+      <div class="form-text">Local time at arrival airport</div>
+    </div>
   </div>
 
-  <div class="mt">
-    <label>All-day event?</label>
-    <select id="allDay">
+  <div class="mt-3">
+    <label class="form-label">Notes (optional)</label>
+    <textarea id="notes" rows="3" class="form-control" placeholder="Seat, record locator, baggage, etc."></textarea>
+  </div>
+
+  <div class="mt-3">
+    <label class="form-label">All-day event?</label>
+    <select id="allDay" class="form-select">
       <option value="no" selected>No</option>
       <option value="yes">Yes</option>
     </select>
@@ -77,13 +79,75 @@
 
 </form>
       <div class="sticky-download" aria-hidden="true">
-        <button type="button" id="stickyDownload">Download .ics</button>
+        <button type="button" id="stickyDownload" class="btn btn-primary w-100">Download .ics</button>
+      </div>
+        </div>
       </div>
     </div>
-    <script>
+
+
+ <!-- JAVASCRIPT BELOW -->
+<script src="config.js"></script>
+
+<script>
   // Auto-prefix selected airline code to the flight input (e.g., AA → AA100)
   const airlineSel = document.getElementById('airline');
   const flightInput = document.getElementById('flightIata');
+
+  // --- Auto-fill using AviationStack (runs when flight input loses focus) ---
+const key = window.AVIATIONSTACK_KEY; // set in config.js
+const depIataEl = document.getElementById('depIata');
+const arrIataEl = document.getElementById('arrIata');
+const depLocalEl = document.getElementById('depLocal');
+const arrLocalEl = document.getElementById('arrLocal');
+
+function toDatetimeLocalInput(dt) {
+  // dt can be string or Date. Normalize to Date first.
+  const d = (dt instanceof Date) ? dt : new Date(dt);
+  const pad = (n) => String(n).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const HH = pad(d.getHours());
+  const MM = pad(d.getMinutes());
+  // type="datetime-local" expects "YYYY-MM-DDTHH:MM"
+  return `${yyyy}-${mm}-${dd}T${HH}:${MM}`;
+}
+
+async function tryAutofillFromAviationStack() {
+  const code = (flightInput.value || '').trim().toUpperCase();
+  if (!key || !code || code.length < 3) return; // need something like AA100
+
+  // NOTE: Free AviationStack keys are HTTP-only. Use https if your plan supports it.
+  // If you test on Vercel (https), http will be blocked by the browser.
+  const url = `/api/flight?code=${encodeURIComponent(code)}`;
+  
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return;
+    const json = await res.json();
+    const item = json?.data?.[0];
+    if (!item) return;
+
+    // Fill airports
+    const dep = item.departure || {};
+    const arr = item.arrival || {};
+    if (dep.iata && !depIataEl.value) depIataEl.value = dep.iata;
+    if (arr.iata && !arrIataEl.value) arrIataEl.value = arr.iata;
+
+    // Fill times (scheduled preferred; fall back to estimated)
+    const depTime = dep.scheduled || dep.estimated;
+    const arrTime = arr.scheduled || arr.estimated;
+    if (depTime && !depLocalEl.value) depLocalEl.value = toDatetimeLocalInput(depTime);
+    if (arrTime && !arrLocalEl.value) arrLocalEl.value = toDatetimeLocalInput(arrTime);
+  } catch {
+    // ignore; keep manual flow working
+  }
+}
+
+// Trigger autofill when user finishes typing flight
+flightInput.addEventListener('blur', tryAutofillFromAviationStack);
+
 
   if (airlineSel && flightInput) {
     airlineSel.addEventListener('change', () => {
